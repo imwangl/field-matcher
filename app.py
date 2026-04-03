@@ -12,31 +12,65 @@ app.config['OUTPUT_FOLDER'] = 'outputs'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
-# 加载匹配数据 - 只加载目录
-DIRECTORY_FIELDS = []
+# 加载匹配数据
+DIRECTORY_FIELDS = []   # 目录
+SHEET_G_DATA = {}      # G列
 
 def load_directory():
-    """加载目录数据"""
+    """加载目录"""
     global DIRECTORY_FIELDS
     
     local_file = os.path.join(os.path.dirname(__file__), 'templates', '工商库.xlsx')
     if not os.path.exists(local_file):
-        print("本地文件不存在")
         return
     
     try:
-        # 只读取目录sheet
         df = pd.read_excel(local_file, sheet_name='目录')
         if '对应数据名称' in df.columns:
             DIRECTORY_FIELDS = df['对应数据名称'].dropna().astype(str).tolist()
             DIRECTORY_FIELDS = [x.strip() for x in DIRECTORY_FIELDS if x.strip()]
             print(f"目录: {len(DIRECTORY_FIELDS)} 条")
     except Exception as e:
-        print(f"加载失败: {e}")
+        print(f"加载目录失败: {e}")
 
-# 启动时加载
+def load_g_columns():
+    """延迟加载G列"""
+    global SHEET_G_DATA
+    
+    if SHEET_G_DATA:
+        return
+    
+    local_file = os.path.join(os.path.dirname(__file__), 'templates', '工商库.xlsx')
+    if not os.path.exists(local_file):
+        return
+    
+    try:
+        xl = pd.ExcelFile(local_file)
+        
+        # 常用sheet（年报相关）
+        priority_sheets = ['工商-年报基本信息', '经营信息-地块公示', '特殊主体-事业单位']
+        
+        for sheet in priority_sheets:
+            if sheet in xl.sheet_names:
+                try:
+                    df = pd.read_excel(local_file, sheet_name=sheet)
+                    if len(df.columns) >= 7:
+                        g_col = df.columns[6]
+                        g_data = df[g_col].dropna().astype(str).tolist()
+                        g_data = [x.strip() for x in g_data if x.strip() and len(x) > 1]
+                        if g_data:
+                            SHEET_G_DATA[sheet] = g_data
+                            print(f"{sheet}: {len(g_data)} 条")
+                except:
+                    pass
+        
+        print(f"G列加载完成: {len(SHEET_G_DATA)} 个sheet")
+    except Exception as e:
+        print(f"加载G列失败: {e}")
+
+# 启动时只加载目录
 load_directory()
 
 def clean_text(s):
@@ -75,7 +109,7 @@ def find_match(user_field):
     
     user_clean = clean_text(user_field)
     
-    # 匹配目录
+    # 1. 匹配目录
     for target in DIRECTORY_FIELDS:
         target = str(target).strip()
         if not target:
@@ -91,6 +125,26 @@ def find_match(user_field):
                 return {'matched': target, 'source': '目录', 'type': '推荐', 'score': int(sim*100)}
         except:
             pass
+    
+    # 2. 匹配G列（延迟加载）
+    load_g_columns()
+    
+    for sheet_name, g_data in SHEET_G_DATA.items():
+        for target in g_data:
+            target = str(target).strip()
+            if not target:
+                continue
+            target_clean = clean_text(target)
+            
+            if user_field == target or user_clean == target_clean:
+                return {'matched': target, 'source': sheet_name, 'type': '完全匹配', 'score': 100}
+            
+            try:
+                sim = Levenshtein.ratio(user_clean, target_clean)
+                if sim >= 0.4:
+                    return {'matched': target, 'source': sheet_name, 'type': '推荐', 'score': int(sim*100)}
+            except:
+                pass
     
     return None
 
