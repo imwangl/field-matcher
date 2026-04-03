@@ -290,9 +290,7 @@ from flask import make_response
 @app.route('/template/txt')
 def download_template():
     template_file = os.path.join(os.path.dirname(__file__), 'templates', '模板.txt')
-    response = make_response(send_file(template_file, as_attachment=True, mimetype='text/plain'))
-    response.headers['Content-Disposition'] = "attachment; filename='模板.txt'; filename*=UTF-8''模板.txt"
-    return response
+    return send_file(template_file, as_attachment=True, mimetype='text/plain')
 
 @app.route('/match', methods=['POST'])
 def match_fields():
