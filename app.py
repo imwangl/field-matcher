@@ -288,7 +288,10 @@ def index():
 @app.route('/template/txt')
 def download_template():
     template_file = os.path.join(os.path.dirname(__file__), 'templates', '模板.txt')
-    return send_file(template_file, download_name='模板.txt', as_attachment=True)
+    return send_file(template_file, 
+                     download_name='模板.txt', 
+                     as_attachment=True,
+                     mimetype='text/plain')
 
 @app.route('/match', methods=['POST'])
 def match_fields():
