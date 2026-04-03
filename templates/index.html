@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字段匹配工具 v{{ version }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; color: #333; }
+        .card { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .tip { text-align: center; color: #666; margin-bottom: 20px; }
+        .upload-area { border: 2px dashed #d9d9d9; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 20px; }
+        .upload-area:hover { border-color: #1890ff; }
+        .upload-area:hover .upload-icon { transform: scale(1.1); }
+        .upload-icon { font-size: 40px; transition: transform 0.3s; }
+        .file-info { margin-top: 10px; color: #666; }
+        .btn { display: inline-block; padding: 10px 20px; border-radius: 6px; cursor: pointer; text-decoration: none; margin: 5px; border: none; font-size: 14px; }
+        .btn-primary { background: #1890ff; color: white; }
+        .btn-primary:hover { background: #40a9ff; }
+        .btn-success { background: #52c41a; color: white; }
+        .btn-success:hover { background: #73d13d; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .loading { display: none; text-align: center; padding: 30px; }
+        .loading.show { display: block; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #1890ff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .results { display: none; margin-top: 20px; }
+        .results.show { display: block; }
+        .stats { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .stat-item { padding: 10px 20px; border-radius: 6px; font-size: 14px; }
+        .stat-total { background: #e6f7ff; color: #1890ff; }
+        .stat-exact { background: #f6ffed; color: #52c41a; }
+        .stat-recommend { background: #fff7e6; color: #fa8c16; }
+        .stat-no { background: #fff1f0; color: #ff4d4f; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e8e8e8; }
+        th { background: #fafafa; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 字段匹配工具</h1>
+        <div class="card">
+            <p class="tip">上传TXT文件，自动匹配字段</p>
+            
+            <div class="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-icon">📁</div>
+                <div>点击选择TXT文件</div>
+                <input type="file" id="file-input" accept=".txt" style="display:none" onchange="handleFileSelect(event)">
+                <div class="file-info" id="file-info"></div>
+            </div>
+            
+            <div style="text-align: center;">
+                <button class="btn btn-success" id="submit-btn" onclick="submitMatch()" disabled>开始匹配</button>
+            </div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div>匹配中，请稍候...</div>
+            </div>
+            
+            <div class="results" id="results">
+                <div class="stats">
+                    <div class="stat-item stat-total">总计: <span id="stat-total">0</span></div>
+                    <div class="stat-item stat-exact">完全匹配: <span id="stat-exact">0</span></div>
+                    <div class="stat-item stat-recommend">推荐: <span id="stat-recommend">0</span></div>
+                    <div class="stat-item stat-no">匹配失败: <span id="stat-failed">0</span></div>
+                </div>
+                <div style="text-align: center;">
+                    <button class="btn btn-primary" onclick="downloadResult()">📥 下载结果</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>用户字段</th>
+                            <th>匹配结果</th>
+                            <th>来源</th>
+                            <th>类型</th>
+                        </tr>
+                    </thead>
+                    <tbody id="result-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+        <p style="text-align: center; margin-top: 20px; color: #999;">v{{ version }}</p>
+    </div>
+    
+    <script>
+        let selectedFile = null;
+        
+        function handleFileSelect(event) {
+            selectedFile = event.target.files[0];
+            if (selectedFile) {
+                document.getElementById('file-info').textContent = '已选择: ' + selectedFile.name;
+                document.getElementById('submit-btn').disabled = false;
+            }
+        }
+        
+        function submitMatch() {
+            if (!selectedFile) return;
+            
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('results').classList.remove('show');
+            document.getElementById('submit-btn').disabled = true;
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            fetch('/match', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('submit-btn').disabled = false;
+                
+                if (data.error) {
+                    alert('错误: ' + data.error);
+                    return;
+                }
+                
+                // 显示统计
+                document.getElementById('stat-total').textContent = data.stats.total;
+                document.getElementById('stat-exact').textContent = data.stats.exact;
+                document.getElementById('stat-recommend').textContent = data.stats.recommend;
+                document.getElementById('stat-failed').textContent = data.stats.failed;
+                
+                // 显示表格
+                const tbody = document.getElementById('result-tbody');
+                tbody.innerHTML = '';
+                data.results.forEach(r => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${r.user_field}</td><td>${r.matched}</td><td>${r.source}</td><td>${r.match_type}</td>`;
+                    tbody.appendChild(row);
+                });
+                
+                document.getElementById('results').classList.add('show');
+            })
+            .catch(err => {
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('submit-btn').disabled = false;
+                alert('请求失败: ' + err);
+            });
+        }
+        
+        function downloadResult() {
+            window.location.href = '/download';
+        }
+    </script>
+</body>
+</html>
