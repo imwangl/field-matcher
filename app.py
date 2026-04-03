@@ -287,9 +287,8 @@ def index():
 
 @app.route('/template/txt')
 def download_template():
-    content = "1、公司概况：基本信息、联系方式、变更记录，主要人员；\n2、股东信息：股东信息、对外投资；"
-    output = BytesIO(content.encode('utf-8'))
-    return send_file(output, download_name='模板.txt', as_attachment=True)
+    template_file = os.path.join(os.path.dirname(__file__), 'templates', '模板.txt')
+    return send_file(template_file, download_name='模板.txt', as_attachment=True)
 
 @app.route('/match', methods=['POST'])
 def match_fields():
