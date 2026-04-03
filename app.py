@@ -109,6 +109,8 @@ def find_match(user_field):
     
     user_clean = clean_text(user_field)
     
+    best_match = None
+    
     # 1. 匹配目录
     for target in DIRECTORY_FIELDS:
         target = str(target).strip()
@@ -116,17 +118,26 @@ def find_match(user_field):
             continue
         target_clean = clean_text(target)
         
-        if user_field == target or user_clean == target_clean:
-            return {'matched': target, 'source': '目录', 'type': '完全匹配', 'score': 100}
+        score = 0
+        match_type = ''
         
-        try:
-            sim = Levenshtein.ratio(user_clean, target_clean)
-            if sim >= 0.4:
-                return {'matched': target, 'source': '目录', 'type': '推荐', 'score': int(sim*100)}
-        except:
-            pass
+        if user_field == target or user_clean == target_clean:
+            score = 100
+            match_type = '完全匹配'
+        else:
+            try:
+                sim = Levenshtein.ratio(user_clean, target_clean)
+                if sim >= 0.4:
+                    score = int(sim * 100)
+                    match_type = '推荐'
+            except:
+                pass
+        
+        if score > 0:
+            if best_match is None or score > best_match['score']:
+                best_match = {'matched': target, 'source': '目录', 'type': match_type, 'score': score}
     
-    # 2. 匹配G列（延迟加载）
+    # 2. 匹配G列
     load_g_columns()
     
     for sheet_name, g_data in SHEET_G_DATA.items():
@@ -136,17 +147,26 @@ def find_match(user_field):
                 continue
             target_clean = clean_text(target)
             
-            if user_field == target or user_clean == target_clean:
-                return {'matched': target, 'source': sheet_name, 'type': '完全匹配', 'score': 100}
+            score = 0
+            match_type = ''
             
-            try:
-                sim = Levenshtein.ratio(user_clean, target_clean)
-                if sim >= 0.4:
-                    return {'matched': target, 'source': sheet_name, 'type': '推荐', 'score': int(sim*100)}
-            except:
-                pass
+            if user_field == target or user_clean == target_clean:
+                score = 100
+                match_type = '完全匹配'
+            else:
+                try:
+                    sim = Levenshtein.ratio(user_clean, target_clean)
+                    if sim >= 0.4:
+                        score = int(sim * 100)
+                        match_type = '推荐'
+                except:
+                    pass
+            
+            if score > 0:
+                if best_match is None or score > best_match['score']:
+                    best_match = {'matched': target, 'source': sheet_name, 'type': match_type, 'score': score}
     
-    return None
+    return best_match
 
 @app.route('/')
 def index():
