@@ -285,13 +285,14 @@ def find_match(user_field):
 def index():
     return render_template('index.html', version=VERSION)
 
+from flask import make_response
+
 @app.route('/template/txt')
 def download_template():
     template_file = os.path.join(os.path.dirname(__file__), 'templates', '模板.txt')
-    return send_file(template_file, 
-                     download_name='模板.txt', 
-                     as_attachment=True,
-                     mimetype='text/plain')
+    response = make_response(send_file(template_file, as_attachment=True, mimetype='text/plain'))
+    response.headers['Content-Disposition'] = "attachment; filename='模板.txt'; filename*=UTF-8''模板.txt"
+    return response
 
 @app.route('/match', methods=['POST'])
 def match_fields():
