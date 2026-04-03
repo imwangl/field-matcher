@@ -294,23 +294,30 @@ def download_template():
 @app.route('/match', methods=['POST'])
 def match_fields():
     try:
-        if 'file' not in request.files:
-            return jsonify({'error': '请上传文件'}), 400
+        # 支持单个字段查询（通过URL参数）
+        single_field = request.form.get('single_field') or request.args.get('single_field')
         
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': '请选择文件'}), 400
-        
-        ext = os.path.splitext(file.filename)[1].lower()
-        if ext != '.txt':
-            return jsonify({'error': '只支持TXT文件'}), 400
-        
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filepath)
-        
-        user_fields = parse_txt_fields(filepath)
-        if not user_fields:
-            return jsonify({'error': '未能解析出字段'}), 400
+        if single_field:
+            # 单个字段查询
+            user_fields = [single_field.strip()]
+        elif 'file' not in request.files:
+            return jsonify({'error': '请上传文件或输入字段'}), 400
+        else:
+            # 文件上传
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({'error': '请选择文件'}), 400
+            
+            ext = os.path.splitext(file.filename)[1].lower()
+            if ext != '.txt':
+                return jsonify({'error': '只支持TXT文件'}), 400
+            
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(filepath)
+            
+            user_fields = parse_txt_fields(filepath)
+            if not user_fields:
+                return jsonify({'error': '未能解析出字段'}), 400
         
         results = []
         for field in user_fields:
