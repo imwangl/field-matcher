@@ -46,8 +46,113 @@ def load_match_data():
 
 load_match_data()
 
+# 语义相关词映射（用户词 -> 相关词）
+SEMANTIC_MAP = {
+    '评级': ['等级', '评级', '信用'],
+    '等级': ['等级', '评级', '信用'],
+    '税务': ['纳税', '税务', '税'],
+    '纳税': ['纳税', '税务', '税'],
+    '联系': ['联系', '电话', '邮箱', '地址'],
+    '电话': ['联系', '电话', '号码'],
+    '邮箱': ['联系', '邮箱', '邮件'],
+    '地址': ['联系', '地址', '所在地'],
+    '处罚': ['处罚', '违法', '惩罚'],
+    '许可': ['许可', '批准', '资质'],
+    '变更': ['变更', '变动', '修改'],
+    '投资': ['投资', '出资', '股权'],
+    '股东': ['股东', '出资', '投资'],
+    '法人': ['法人', '代表', '负责人'],
+    '年报': ['年报', '年度报告', '年度'],
+    '基本': ['基本', '基础', '主要'],
+}
+
 def clean_text(s):
     return s.replace('工商-', '').replace('企业', '').replace('公司', '').replace('信息', '').replace('数据', '').replace('记录', '').replace(' ', '').strip()
+
+def get_semantic_score(user_field, target_field):
+    """计算语义相关性分数"""
+    score = 0
+    
+    # 检查是否有语义相关的词
+    for user_word, related_words in SEMANTIC_MAP.items():
+        if user_word in user_field:
+            for related in related_words:
+                if related in target_field:
+                    score += 20  # 每个语义相关加20分
+    
+    return score
+
+def find_match(user_field):
+    user_field = str(user_field).strip()
+    if not user_field:
+        return None
+    
+    user_clean = clean_text(user_field)
+    best_match = None
+    
+    # 1. 匹配目录
+    for target in DIRECTORY_FIELDS:
+        target = str(target).strip()
+        if not target:
+            continue
+        target_clean = clean_text(target)
+        
+        # 基础相似度
+        base_score = 0
+        match_type = ''
+        
+        if user_field == target or user_clean == target_clean:
+            base_score = 100
+            match_type = '完全匹配'
+        else:
+            try:
+                sim = Levenshtein.ratio(user_clean, target_clean)
+                if sim >= 0.4:
+                    base_score = int(sim * 100)
+                    match_type = '推荐'
+            except:
+                pass
+        
+        # 加上语义分数
+        if base_score > 0:
+            semantic_bonus = get_semantic_score(user_field, target)
+            total_score = min(100, base_score + semantic_bonus)  # 最高100分
+            
+            if best_match is None or total_score > best_match['score']:
+                best_match = {'matched': target, 'source': '目录', 'type': match_type, 'score': total_score}
+    
+    # 2. 从G列索引中找
+    if best_match is None or best_match['score'] < 100:
+        for sheet_name, g_data in G_INDEX.items():
+            for target in g_data:
+                target = str(target).strip()
+                if not target:
+                    continue
+                target_clean = clean_text(target)
+                
+                base_score = 0
+                match_type = ''
+                
+                if user_field == target or user_clean == target_clean:
+                    base_score = 100
+                    match_type = '完全匹配'
+                else:
+                    try:
+                        sim = Levenshtein.ratio(user_clean, target_clean)
+                        if sim >= 0.4:
+                            base_score = int(sim * 100)
+                            match_type = '推荐'
+                    except:
+                        pass
+                
+                if base_score > 0:
+                    semantic_bonus = get_semantic_score(user_field, target)
+                    total_score = min(100, base_score + semantic_bonus)
+                    
+                    if best_match is None or total_score > best_match['score']:
+                        best_match = {'matched': target, 'source': sheet_name, 'type': match_type, 'score': total_score}
+    
+    return best_match
 
 def parse_txt_fields(filepath):
     fields = []
