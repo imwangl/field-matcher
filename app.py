@@ -22,8 +22,10 @@ G_INDEX = {}
 def load_match_data():
     global DIRECTORY_FIELDS, G_INDEX
     
-    # 加载目录
     local_file = os.path.join(os.path.dirname(__file__), 'templates', '工商库.xlsx')
+    json_file = os.path.join(os.path.dirname(__file__), 'templates', 'g_index.json')
+    
+    # 加载目录
     if os.path.exists(local_file):
         try:
             df = pd.read_excel(local_file, sheet_name='目录')
@@ -34,15 +36,49 @@ def load_match_data():
         except Exception as e:
             print(f"加载目录失败: {e}")
     
-    # 从JSON加载G列索引
-    json_file = os.path.join(os.path.dirname(__file__), 'templates', 'g_index.json')
-    if os.path.exists(json_file):
-        try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                G_INDEX = json.load(f)
-            print(f"G列索引: {len(G_INDEX)} 个sheet")
-        except Exception as e:
-            print(f"加载G列索引失败: {e}")
+    # 加载G列索引（自动刷新）
+    try:
+        if os.path.exists(json_file):
+            # 检查文件是否过期（超过7天）
+            import time
+            json_mtime = os.path.getmtime(json_file)
+            json_age_days = (time.time() - json_mtime) / 86400
+            
+            if json_age_days > 7:
+                print(f"JSON索引已过期({json_age_days:.1f}天)，重新生成...")
+                os.remove(json_file)
+            else:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    G_INDEX = json.load(f)
+                print(f"G列索引: {len(G_INDEX)} 个sheet")
+        else:
+            # 重新生成JSON索引
+            print("JSON索引不存在，正在生成...")
+        
+        # 如果JSON不存在，重新生成
+        if not G_INDEX:
+            xl = pd.ExcelFile(local_file)
+            for sheet in xl.sheet_names:
+                if sheet in ['目录', 'Sheet1']:
+                    continue
+                try:
+                    df = pd.read_excel(local_file, sheet_name=sheet)
+                    if len(df.columns) >= 7:
+                        g_col = df.columns[6]
+                        g_data = df[g_col].dropna().astype(str).tolist()
+                        g_data = [x.strip() for x in g_data if x.strip() and len(x) > 1]
+                        if g_data:
+                            G_INDEX[sheet] = g_data
+                except:
+                    pass
+            
+            # 保存到JSON
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(G_INDEX, f, ensure_ascii=False, indent=2)
+            print(f"G列索引已生成并保存: {len(G_INDEX)} 个sheet")
+    
+    except Exception as e:
+        print(f"加载G列索引失败: {e}")
 
 load_match_data()
 
