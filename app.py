@@ -49,22 +49,20 @@ def load_g_columns():
     try:
         xl = pd.ExcelFile(local_file)
         
-        # 常用sheet（年报相关）
-        priority_sheets = ['工商-年报基本信息', '经营信息-地块公示', '特殊主体-事业单位']
-        
-        for sheet in priority_sheets:
-            if sheet in xl.sheet_names:
-                try:
-                    df = pd.read_excel(local_file, sheet_name=sheet)
-                    if len(df.columns) >= 7:
-                        g_col = df.columns[6]
-                        g_data = df[g_col].dropna().astype(str).tolist()
-                        g_data = [x.strip() for x in g_data if x.strip() and len(x) > 1]
-                        if g_data:
-                            SHEET_G_DATA[sheet] = g_data
-                            print(f"{sheet}: {len(g_data)} 条")
-                except:
-                    pass
+        # 加载所有sheet的G列
+        for sheet in xl.sheet_names:
+            if sheet in ['目录', 'Sheet1']:
+                continue
+            try:
+                df = pd.read_excel(local_file, sheet_name=sheet)
+                if len(df.columns) >= 7:
+                    g_col = df.columns[6]
+                    g_data = df[g_col].dropna().astype(str).tolist()
+                    g_data = [x.strip() for x in g_data if x.strip() and len(x) > 1]
+                    if g_data:
+                        SHEET_G_DATA[sheet] = g_data
+            except:
+                pass
         
         print(f"G列加载完成: {len(SHEET_G_DATA)} 个sheet")
     except Exception as e:
